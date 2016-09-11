@@ -1,0 +1,114 @@
+
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.io.IO
+import spray.can.Http
+import spray.http._
+import spray.http.{HttpMethods, HttpRequest, HttpResponse, Uri}
+import spray.http.HttpMethods._
+import akka.routing.SmallestMailboxPool
+import com.typesafe.config.ConfigFactory
+
+import scala.collection.mutable.ArrayBuffer
+
+import spray.json._
+import spray.json.DefaultJsonProtocol
+import spray.json.DeserializationException
+import spray.json.JsArray
+import spray.json.JsNumber
+import spray.json.JsObject
+import spray.json.JsString
+import spray.json.JsValue
+import spray.json.JsonFormat
+import spray.json.pimpAny
+
+
+
+class ServerController extends Actor{
+
+    var cores = (Runtime.getRuntime().availableProcessors()).toInt
+    
+	val router =context.actorOf(SmallestMailboxPool(cores).props(Props[ServerActor]),"Router")  //Set up a router to assign tasks    
+    println("Num of router: "+cores)
+    
+    println("router  "+router)
+    def receive={
+		case "remote"=>println(self+"  remote")
+		case "newuser"=>println("newuser")
+		case _ =>{
+			println("ServerController here")
+			router ! "hi"
+				 } 
+	}
+		
+    
+}
+
+case class User (id: Int, gen:String,fname: String, lname: String, age:Int,email: String) {
+	var userId = id
+	var gender=gen
+	var firstname = fname
+	var lastname = lname
+	var age0=age
+	var emailAdd = email
+	var timeline: ConcurrentLinkedQueue[String] = new ConcurrentLinkedQueue()
+	var messages: ArrayBuffer[String] = ArrayBuffer.empty
+	var friends: ConcurrentHashMap[String, String] = new ConcurrentHashMap()
+	var friendRequests: ConcurrentHashMap[String, String] = new ConcurrentHashMap()
+	var likedpages: ConcurrentLinkedQueue[String] = new ConcurrentLinkedQueue()
+}
+
+class ServerActor extends Actor {
+	import jsonform._
+	
+	var userstore: ConcurrentHashMap[String, User] = new ConcurrentHashMap()
+  //lazy val serverController = context.actorSelection("//ServerSystem/user/server_controller")
+
+	def receive = {
+		//case "remote"=>println(self+"  remote")
+
+			
+		case Adduser(id,gender,firstname,lastname,age,email) =>
+			userstore.put(id+"", new User(id,gender,firstname,lastname,age,email))
+			println("User "+id+" registered");
+			//sender ! Response("SUCCESS",id+"","").toJson.toString
+			
+			
+		case Getuser(id) =>			
+			if(userstore.containsKey(id.toString)){
+				var obj=userstore.get(id.toString)
+				var temp=UserInfo(obj.fname,obj.lname,obj.gen,obj.age,obj.email)
+                sender ! Json.parse(temp)
+                println("user"+id)	
+			}
+			else{
+				var temp="User "+id+" Not exist"
+				sender ! temp.toJson.prettyPrint
+				println(temp)	
+			}
+			
+		case _ => 
+			println("Server " + self)			
+    
+  }
+}
+
+
+
+object Main {
+
+  def main(args: Array[String]) {
+    val system = ActorSystem("my-server-system")
+    //val serverConfig = ConfigFactory.load().getConfig("my-server-system")
+    //println(serverConfig)
+
+    val serverctr: ActorRef=system.actorOf(Props[ServerController], "ServerController")
+
+    println("serverctr "+serverctr)
+
+    serverctr ! "Hi"
+  }
+
+}
+

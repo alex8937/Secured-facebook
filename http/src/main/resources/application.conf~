@@ -1,0 +1,20 @@
+akka {
+    loglevel = "INFO"
+    log-dead-letters = off
+    log-dead-letters-during-shutdown = off
+    
+    actor{
+        provider = "akka.remote.RemoteActorRefProvider"   
+    }
+    remote {
+        enabled-transports =["akka.remote.netty.tcp"]
+        netty.tcp{
+            hostname ="127.0.0.1"
+            port=3000
+        }
+    log-sent-messages = on
+    log-received-messages = on
+    }
+ 
+    
+}

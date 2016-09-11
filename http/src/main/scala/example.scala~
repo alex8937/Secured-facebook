@@ -1,0 +1,94 @@
+
+
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.io.IO
+import spray.can.Http
+import spray.http._
+import spray.http.{HttpMethods, HttpRequest, HttpResponse, Uri}
+import spray.http.HttpMethods._
+import akka.routing.SmallestMailboxPool
+import com.typesafe.config.ConfigFactory
+
+class App extends Actor {
+
+  implicit val system = context.system
+
+  override def receive = {
+    case "start" =>
+      val listener: ActorRef = system.actorOf(Props[HttpListener])
+      IO(Http) ! Http.Bind(listener, interface = "localhost", port = 8080)
+  }
+
+}
+
+class HttpListener extends Actor {
+
+  def receive = {
+    case _: Http.Connected =>
+      sender() ! Http.Register(self)  	
+	case HttpRequest(GET, Uri.Path("/"), _, _, _) ⇒
+	 var a:Int=100
+	  sender ! HttpResponse(
+		entity = HttpEntity(MediaTypes.`text/html`,
+		<html>
+         <body>
+          <h1>Hi</h1>
+          <table>
+            <tr><td>uptime:</td><td>{a}</td></tr>
+          </table>
+         </body>
+		</html>.toString()
+		
+		))
+	case HttpRequest(GET, Uri.Path("/ping"), _, _, _) =>
+	  sender ! HttpResponse(entity = "PONG")
+  }
+
+}
+
+class ServerController extends Actor{
+
+    var cores = (Runtime.getRuntime().availableProcessors()).toInt
+    
+	val router =context.actorOf(SmallestMailboxPool(cores).props(Props[ServerActor]),"Router")  //Set up a router to assign tasks    
+    println("Num of router: "+cores)
+    
+    println(router)
+    def receive={
+		case _ =>{
+			println("ServerController here")
+			router ! "hi"
+				 } 
+	}
+		
+    
+}
+class ServerActor extends Actor {
+
+  //lazy val serverController = context.actorSelection("//ServerSystem/user/server_controller")
+
+	def receive = {
+		case _ => 
+			println("Unexpected Message received by " + self)
+    
+  }
+}
+
+
+
+object Main {
+
+  def main(args: Array[String]) {
+    val system = ActorSystem("my-server-system")
+    //val serverConfig = ConfigFactory.load().getConfig("my-server-system")
+    //println(serverConfig)
+    
+    val http: ActorRef = system.actorOf(Props[App], "app")
+    val serverctr: ActorRef=system.actorOf(Props[ServerController], "server")
+    println(http)
+    println(serverctr)
+    http ! "start"
+    serverctr ! "Hi"
+  }
+
+}

@@ -1,0 +1,124 @@
+
+
+import java.net.InetAddress
+import scala.concurrent.duration.DurationInt
+import akka.actor.{Actor, ActorSelection, ActorRef, ActorSystem, Props}
+import akka.io.IO
+import akka.pattern.ask
+import akka.util.Timeout
+import akka.util.Timeout.durationToTimeout
+
+import spray.can.Http
+import spray.http.ContentTypes
+import spray.http.HttpEntity
+import spray.http.HttpHeader
+import spray.http.HttpEntity.apply
+import spray.http.HttpMethods.GET
+import spray.http.HttpMethods.POST
+import spray.http.HttpRequest
+import spray.http.HttpResponse
+import spray.http.StatusCode.int2StatusCode
+import spray.http.Uri
+import spray.json.pimpAny
+import spray.json.pimpString
+import spray.http._
+
+import akka.routing.SmallestMailboxPool
+import com.typesafe.config.ConfigFactory
+
+import scala.collection.mutable.ArrayBuffer
+
+
+
+import spray.json.DefaultJsonProtocol
+import spray.json.DeserializationException
+import spray.json.JsArray
+import spray.json.JsNumber
+import spray.json.JsObject
+import spray.json.JsString
+import spray.json.JsValue
+import spray.json.JsonFormat
+import spray.json.pimpAny
+
+
+
+class App extends Actor {
+  import jsonform._
+  import context.dispatcher
+  
+  implicit val timeout = Timeout(60 seconds)
+  implicit val system = context.system
+  var ip="127.0.0.1"
+  val server=context.actorSelection("akka.tcp://my-server-system@"+ip+":1234/user/ServerController/Router")
+  val http=context.actorSelection("akka.tcp://my-http-system@"+ip+":3000/user/app")
+
+
+
+
+  override def receive = {
+    case start(port0) =>
+      IO(Http) ! Http.Bind(self, interface = "localhost", port = port0)
+
+
+    case _: Http.Connected =>
+      sender() ! Http.Register(self)
+
+
+	//case "hi" =>println("receive "+sender) 	
+	case HttpRequest(GET, Uri.Path("/"), _, _, _) =>
+	 var a:Int=100
+	  sender ! HttpResponse(
+		entity = HttpEntity(MediaTypes.`text/html`,
+		<html>
+         <body>
+          <h1>Hi</h1>
+          <table>
+            <tr><td>uptime:</td><td>{a}</td></tr>
+          </table>
+         </body>
+		</html>.toString()
+		
+		))
+	
+	/*case HttpRequest(GET, Uri.Path("/people"),_,entity, _)=>
+		println("Aa")
+		val info = entity.data.asString.parseJson.convertTo[UserInfo]
+		var client = sender
+		val result = (server ? Adduser(info.id,info.gender,info.firstname,info.lastname,info.email)).mapTo[String]
+		result onSuccess {
+			case result =>
+				println(result)
+				client ! HttpResponse(entity = HttpEntity(ContentTypes.`application/json`, result))
+		}*/
+
+	case HttpRequest(GET, Uri.Path(path),_,_, _) if path startsWith "/people"=>
+		var id = path.split("/").last.toString
+		var client = sender
+		val result = (server ? Getuser(id.toInt)).mapTo[String]
+		result onSuccess {
+			case result =>
+				//println(result)
+				client ! HttpResponse(
+					entity = HttpEntity(ContentTypes.`application/json`, result))
+		}
+		
+	case HttpRequest(GET, Uri.Path("/ping"), _, _, _) =>
+	  sender ! HttpResponse(entity = "PONG")
+	case HttpRequest(GET,_, _, _, _) =>
+	  sender ! HttpResponse(entity = "404")
+  }
+
+}
+
+
+object Main {
+
+  def main(args: Array[String]) {
+    val system = ActorSystem("my-http-system")
+    
+    val http: ActorRef = system.actorOf(Props[App], "app")
+    println("http "+http)
+    http ! start(8080) //Input bound port
+  }
+
+}

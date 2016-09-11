@@ -1,0 +1,40 @@
+
+
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import akka.io.IO
+import spray.can.Http
+import spray.http.{HttpMethods, HttpRequest, HttpResponse, Uri}
+
+
+class App extends Actor {
+
+  implicit val system = context.system
+
+  override def receive = {
+    case "start" =>
+      val listener: ActorRef = system.actorOf(Props[HttpListener])
+      IO(Http) ! Http.Bind(listener, interface = "localhost", port = 8080)
+  }
+
+}
+
+class HttpListener extends Actor {
+
+  def receive = {
+    //case _: Http.Connected =>
+    //  sender() ! Http.Register(self)
+	case HttpRequest(HttpMethods.GET, Uri.Path("/ping"), _, _, _) =>
+	  sender ! HttpResponse(entity = "PONG")
+  }
+
+}
+
+object Main {
+
+  def main(args: Array[String]) {
+    val system = ActorSystem("my-actor-system")
+    val app: ActorRef = system.actorOf(Props[App], "app")
+    app ! "start"
+  }
+
+}

@@ -1,0 +1,24 @@
+import scala.collection.mutable.ArrayBuffer
+
+import spray.json._
+import spray.json.DefaultJsonProtocol
+import spray.json.DeserializationException
+import spray.json.JsArray
+import spray.json.JsNumber
+import spray.json.JsObject
+import spray.json.JsString
+import spray.json.JsValue
+import spray.json.JsonFormat
+import spray.json.pimpAny
+
+object jsonform extends DefaultJsonProtocol {
+	case class UserInfo(firstname:String,lastname:String,gender:String,age:Int,email:String)
+	case class Response(status:String, id:String,message:String)
+	implicit val userInfoFormat = jsonFormat5(UserInfo)
+	implicit val responseFormat = jsonFormat3(Response)
+}
+
+
+
+case class Adduser(id:Int,gender:String,firstname:String,lastname:String,age:Int,email:String)
+case class Getuser(id:Int)
